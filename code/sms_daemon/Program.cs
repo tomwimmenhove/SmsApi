@@ -12,14 +12,6 @@ if (baseUrl == null)
     return;
 }
 
-var apiClient = new SmsApiClient(new HttpClient(), baseUrl);
-
-await apiClient.PostNewMessageAsync(new NewMessageDto {
-    From = "From",
-    To = "To",
-    Message = "Hello world!"
-});
-
 var result = Execute.Run("mmcli", "-m 0 --output-json");
 
 var listResult = ModemManager.ListModems();
@@ -32,6 +24,7 @@ if (listResult == null)
 if (listResult.ModemList.Length == 0)
 {
     Console.Error.WriteLine("No modems available");
+    return;
 }
 
 var modemList = new List<ModemManager>();
@@ -57,6 +50,8 @@ foreach (var modemName in listResult.ModemList)
 
     Console.WriteLine($"Using modem {modem.Modem} with number {modem.Numbers.First()}");
 }
+
+var apiClient = new SmsApiClient(new HttpClient(), baseUrl);
 
 while (true)
 {
