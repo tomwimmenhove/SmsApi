@@ -2,21 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
-using System;
 
 namespace sms.Controllers;
-
-public class NewMessageDto
-{
-    [Required]
-    public string From { get; set; } = default!;
-
-    [Required]
-    public string To { get; set; } = default!;
-
-    [Required]
-    public string Message { get; set; } = default!;
-}
 
 [ApiController]
 [Route("[controller]")]
@@ -189,7 +176,7 @@ public class SmsController : ControllerBase
             var userId = await GetOrCreateUserId(connection, username);
 
             messages = await GetUpdateIds(connection, userId, start_id);
-            if (messages.Count > 0)
+            if (messages.Count > 0 || time_out == 0)
             {
                 return Ok(new { success = true, messages = messages });
             }
@@ -218,7 +205,7 @@ public class SmsController : ControllerBase
 
             return Ok(new { success = true, messages = messages });            
 
-            void HandleMessage(object sender, UserBroadcastEventArgs args)
+            void HandleMessage(object? sender, UserBroadcastEventArgs args)
             {
                 if (args.UserId == userId)
                 {
