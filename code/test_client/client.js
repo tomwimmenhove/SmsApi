@@ -1,6 +1,6 @@
 const https = require('http');
 
-const username = 'tomwimmenhove'
+const username = 'bam'
 
 const baseUrl = 'http://localhost:5001/sms';
 const headers = {
