@@ -1,8 +1,13 @@
 using sms;
 
+IConfiguration configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .Build();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(typeof(IUserBroadcast), new UserBroadcast());
+builder.Services.AddSingleton(configuration);
 
 builder.WebHost.ConfigureKestrel(options =>
 {

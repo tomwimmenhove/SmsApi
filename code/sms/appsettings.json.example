@@ -1,0 +1,5 @@
+{
+  "Database": {
+    "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;"
+  }
+}

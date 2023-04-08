@@ -13,14 +13,16 @@ public class SmsController : ControllerBase
 
     private readonly ILogger<SmsController> _logger;
     private readonly IUserBroadcast _userBroadcast;
+    private readonly string _connectionString;
 
-    public SmsController(ILogger<SmsController> logger, IUserBroadcast userBroadcast)
+    public SmsController(ILogger<SmsController> logger,
+        IUserBroadcast userBroadcast,
+        IConfiguration configuration)
     {
         _logger = logger;
         _userBroadcast = userBroadcast;
+        _connectionString = configuration.GetValue<string>("Database:ConnectionString")!;
     }
-
-    private string _connectionString = "Server=localhost;Database=sms_api;Uid=tom;";
 
     private string? GetUsername() => Request.Headers["X-RapidAPI-User"].FirstOrDefault();
 

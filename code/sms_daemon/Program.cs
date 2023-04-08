@@ -1,6 +1,18 @@
 ﻿using sms_daemon;
+using Microsoft.Extensions.Configuration;
 
-var apiClient = new SmsApiClient(new HttpClient(), "http://localhost:5001/sms/");
+IConfiguration configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .Build();
+
+var baseUrl = configuration.GetValue<string>("Service:BaseUrl");
+if (baseUrl == null)
+{
+    Console.Error.WriteLine("BaseUrl is not set in appsettings.json");
+    return;
+}
+
+var apiClient = new SmsApiClient(new HttpClient(), baseUrl);
 
 await apiClient.PostNewMessageAsync(new NewMessageDto {
     From = "From",
