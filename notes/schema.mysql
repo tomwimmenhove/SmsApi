@@ -1,0 +1,36 @@
+CREATE TABLE messages (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id INT UNSIGNED NOT NULL,
+    number_from VARCHAR(50) NOT NULL,
+    number_to VARCHAR(50) NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX(id),
+    INDEX(user_id)
+);
+
+CREATE TABLE junk_messages (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    number_from VARCHAR(50) NOT NULL,
+    number_to VARCHAR(50) NOT NULL,
+    message VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX(id)
+);
+
+
+CREATE TABLE users (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    username VARCHAR(255) NOT NULL,
+    tag VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_access TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (username),
+    INDEX(id),
+    INDEX(username),
+    INDEX(tag)
+);
+
+
