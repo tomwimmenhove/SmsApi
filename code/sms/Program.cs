@@ -1,4 +1,8 @@
+using sms;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton(typeof(IUserBroadcast), new UserBroadcast());
 
 builder.WebHost.ConfigureKestrel(options =>
 {

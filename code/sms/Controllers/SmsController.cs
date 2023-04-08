@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
+using System;
 
 namespace sms.Controllers;
 
@@ -21,11 +22,15 @@ public class NewMessageDto
 [Route("[controller]")]
 public class SmsController : ControllerBase
 {
-    private readonly ILogger<SmsController> _logger;
+    private Guid _testGuid = Guid.NewGuid();
 
-    public SmsController(ILogger<SmsController> logger)
+    private readonly ILogger<SmsController> _logger;
+    private readonly IUserBroadcast _userBroadcast;
+
+    public SmsController(ILogger<SmsController> logger, IUserBroadcast userBroadcast)
     {
         _logger = logger;
+        _userBroadcast = userBroadcast;
     }
 
     private string _connectionString = "Server=localhost;Database=sms_api;Uid=tom;";
@@ -52,7 +57,7 @@ public class SmsController : ControllerBase
                 var result = await command.ExecuteScalarAsync();
                 if (result != null)
                 {
-                    userId = Convert.ToInt32(result);
+                    userId = (int) (uint) result;
                 }
             }
 
@@ -83,6 +88,8 @@ public class SmsController : ControllerBase
 
                     await command.ExecuteNonQueryAsync();
                 }
+
+                _userBroadcast.NewMessage((uint) userId);
             }
         }
 
@@ -93,7 +100,7 @@ public class SmsController : ControllerBase
     public async Task<IActionResult> SetTag([FromQuery, Required] string tag)
     {
         tag = tag.Trim().ToUpper();
-        if (tag.Length > 6)
+        if (tag.Length > 16)
         {
             return BadRequest(new { success = false, message = "Tag can be no more than 16 characters"});
         }
@@ -164,7 +171,8 @@ public class SmsController : ControllerBase
     }
 
     [HttpGet("GetUpdates")]
-    public async Task<IActionResult> GetUpdates([FromQuery, Required] int start_id)
+    public async Task<IActionResult> GetUpdates([FromQuery, Required] int start_id,
+        [FromQuery] int time_out = 60)
     {
         var username = GetUsername();
         if (username == null)
@@ -180,25 +188,44 @@ public class SmsController : ControllerBase
 
             var userId = await GetOrCreateUserId(connection, username);
 
-            using (var command = new MySqlCommand("SELECT id FROM messages " +
-                "WHERE user_id = @user_id AND id >= @start_id ORDER BY id limit 1000",
-                connection))
+            messages = await GetUpdateIds(connection, userId, start_id);
+            if (messages.Count > 0)
             {
-                command.Parameters.AddWithValue("@user_id", userId);
-                command.Parameters.AddWithValue("@start_id", start_id);
+                return Ok(new { success = true, messages = messages });
+            }
 
-                using (var reader = await command.ExecuteReaderAsync())
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(time_out));
+
+            /* Wait for messages */
+            try
+            {
+                _userBroadcast.NewMessageSent += HandleMessage;
+                await Task.Delay(-1, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Ignore
+            }
+            finally
+            {
+                _userBroadcast.NewMessageSent -= HandleMessage;
+            }
+
+            if (cts.IsCancellationRequested)
+            {
+                messages = await GetUpdateIds(connection, userId, start_id);
+            }
+
+            return Ok(new { success = true, messages = messages });            
+
+            void HandleMessage(object sender, UserBroadcastEventArgs args)
+            {
+                if (args.UserId == userId)
                 {
-                    while (await reader.ReadAsync())
-                    {
-                        var id = reader.GetInt32(0);
-                        messages.Add(id);
-                    }
+                    cts?.Cancel();
                 }
             }
         }
-
-        return Ok(new { success = true, messages = messages });
     }
 
     [HttpGet("GetMessage")]
@@ -287,6 +314,30 @@ public class SmsController : ControllerBase
         userId = await GetUserId(connection, username);
 
         return userId.Value;
+    }
+
+    private async Task<List<int>> GetUpdateIds(MySqlConnection connection, UInt32 userId, int start_id)
+    {
+        var messages = new List<int>();
+
+        using (var command = new MySqlCommand("SELECT id FROM messages " +
+                "WHERE user_id = @user_id AND id >= @start_id ORDER BY id limit 1000",
+                connection))
+        {
+            command.Parameters.AddWithValue("@user_id", userId);
+            command.Parameters.AddWithValue("@start_id", start_id);
+
+            using (var reader = await command.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    var id = reader.GetInt32(0);
+                    messages.Add(id);
+                }
+            }
+        }
+
+        return messages;
     }
 #endregion Helpers
 }
