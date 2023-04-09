@@ -41,6 +41,11 @@ foreach (var modemName in listResult.ModemList)
         return;
     }
 
+    if (!modem.Enable())
+    {
+        throw new ModemManagerException($"Failed to enable modem {modem}");
+    }
+
     if (modem.Numbers.Length == 0)
     {
         throw new ModemManagerException($"Modem {modem} has no number");

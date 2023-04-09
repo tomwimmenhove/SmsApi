@@ -48,6 +48,12 @@ public class ModemManager
         return JsonSerializer.Deserialize<ModemManagerModemInfoDto>(result.StdOut);
     }
 
+    public bool Enable()
+    {
+        var result = Execute.Run(_mmcli, $"-e -m {Modem}");
+        return result.Success;
+    }
+
     public ModemManagerListSmsDto? ListSmsIds()
     {
         var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-list-sms --output-json");
