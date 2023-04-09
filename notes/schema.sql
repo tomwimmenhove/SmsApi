@@ -1,4 +1,4 @@
--- MySQL dump 10.13  Distrib 8.0.29, for Linux (x86_64)
+-- MySQL dump 12.13  Distrib 8.0.29, for Linux (x86_64)
 --
 -- Host: localhost    Database: sms_api
 -- ------------------------------------------------------
@@ -80,7 +80,7 @@ DROP TABLE IF EXISTS `users`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(255) NOT NULL,
+  `username` varchar(64) NOT NULL,
   `tag` varchar(16) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `last_access` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
