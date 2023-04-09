@@ -14,6 +14,7 @@ public class SmsController : ControllerBase
     private readonly ILogger<SmsController> _logger;
     private readonly IUserBroadcast _userBroadcast;
     private readonly string _connectionString;
+    private readonly string _usernameHeader;
 
     public SmsController(ILogger<SmsController> logger,
         IUserBroadcast userBroadcast,
@@ -22,9 +23,10 @@ public class SmsController : ControllerBase
         _logger = logger;
         _userBroadcast = userBroadcast;
         _connectionString = configuration.GetValue<string>("Database:ConnectionString")!;
+        _usernameHeader = configuration.GetValue<string>("Header:Username")!;
     }
 
-    private string? GetUsername() => Request.Headers["X-RapidAPI-User"].FirstOrDefault();
+    private string? GetUsername() => Request.Headers[_usernameHeader].FirstOrDefault();
 
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
 

@@ -1,5 +1,8 @@
 {
   "Database": {
     "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;"
-  }
+  },
+  "Header": {
+    "Username": "X-SomeAPI-User"
+  } 
 }
