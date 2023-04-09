@@ -63,6 +63,8 @@ while (true)
             Console.Error.WriteLine($"Failed to retrieve messages from modem {modem.Modem}");
             continue;
         }
+
+        var toNumber = $"+{modem.Numbers.First()}";
         
         foreach(var smsId in smsIdsResult.Sms)
         {
@@ -75,12 +77,12 @@ while (true)
 
             Console.Write($"Message \"{sms.Sms.Content.Text}\" " +
                 $"from \"{sms.Sms.Content.Number}\" " +
-                $"to \"{modem.Numbers.First()}\" ");
+                $"to \"{toNumber}\" ");
 
             var dto = new NewMessageDto
             {
                 From = sms.Sms.Content.Number,
-                To = modem.Numbers.First(),
+                To = toNumber,
                 Message = sms.Sms.Content.Text
             };
 
