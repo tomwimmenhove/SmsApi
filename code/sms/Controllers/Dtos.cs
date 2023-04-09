@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace sms.Controllers;
 
@@ -46,6 +47,8 @@ public class GetMessageDto
 public class MessageDTO
 {
     public bool Success { get; set; } = true;
+
+    [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
     public string From { get; set; } = default!;
     public string To { get; set; } = default!;
