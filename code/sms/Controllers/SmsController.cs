@@ -29,6 +29,7 @@ public class SmsController : ControllerBase
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
 
     [HttpPost("NewMessage")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
     public async Task<IActionResult> NewMessage([FromBody] NewMessageDto data)
     {
         var tag = new string(data.Message.TakeWhile(x => !char.IsWhiteSpace(x)).ToArray()).Trim().ToUpper();
@@ -78,25 +79,34 @@ public class SmsController : ControllerBase
                     await command.ExecuteNonQueryAsync();
                 }
 
+                /* Notify waiting clients */
                 _userBroadcast.NewMessage((uint) userId);
             }
         }
 
-        return Ok(new { success = true });
+        return Ok(new SimpleOkResponeDto());
     }
 
     [HttpGet("SetTag")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> SetTag([FromQuery, Required] string tag)
     {
         tag = tag.Trim().ToUpper();
         if (tag.Length > 16)
         {
-            return BadRequest(new { success = false, message = "Tag can be no more than 16 characters"});
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "Tag can be no more than 16 characters"
+            });
         }
         var username = GetUsername();
         if (username == null)
         {
-            return BadRequest(new { success = false, message = "No username given"});
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "No username given"
+            });
         }
 
         using (var connection = new MySqlConnection(_connectionString))
@@ -111,7 +121,10 @@ public class SmsController : ControllerBase
                 command.Parameters.AddWithValue("@username", username);
                 if ((long)command.ExecuteScalar() > 0)
                 {
-                    return BadRequest(new { success = false, message = $"Tag \"{tag}\" is already in use" });
+                    return BadRequest(new SimpleErrorResponeDto
+                    {
+                        Message = $"Tag \"{tag}\" is already in use"
+                    });
                 }
             }
 
@@ -127,16 +140,22 @@ public class SmsController : ControllerBase
             }
         }
 
-        return Ok(new { success = true });
+        return Ok(new SimpleOkResponeDto());
     }
 
     [HttpGet("GetTag")]
-    public async Task<IActionResult> SetTag()
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(GetTagDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(SimpleErrorResponeDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
+    public async Task<IActionResult> GetTag()
     {
         var username = GetUsername();
         if (username == null)
         {
-            return BadRequest(new { success = false, message = "No username given"});
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "No username given"
+            });
         }
 
         using (var connection = new MySqlConnection(_connectionString))
@@ -151,22 +170,31 @@ public class SmsController : ControllerBase
                 var result = await command.ExecuteScalarAsync();
                 if (result == null)
                 {
-                    return NotFound(new { success = false, message = "No tag set"});
+                    return NotFound(new SimpleErrorResponeDto
+                    {
+                        Message = "No tag set"
+                    });
                 }
 
-                return Ok( new { success = true, tag = (string) result });
+                return Ok(new GetTagDto{ Tag = (string) result });
             }
         }
     }
 
     [HttpGet("GetUpdates")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(GetUpdatesDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetUpdates([FromQuery, Required] int start_id,
-        [FromQuery] int time_out = 60)
+        [FromQuery] int time_out = 300)
     {
         var username = GetUsername();
         if (username == null)
         {
-            return BadRequest(new { success = false, message = "No username given"});
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "No username given"
+            });
         }
 
         var messages = new List<int>();
@@ -176,11 +204,22 @@ public class SmsController : ControllerBase
             await connection.OpenAsync();
 
             var userId = await GetOrCreateUserId(connection, username);
+            if (userId == -1)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new SimpleErrorResponeDto
+                {
+                    Message = "Something went wrong"
+                });
+            }
 
             messages = await GetUpdateIds(connection, userId, start_id);
             if (messages.Count > 0 || time_out == 0)
             {
-                return Ok(new { success = true, messages = messages });
+                return Ok(new GetUpdatesDto
+                {
+                    Messages = messages
+                });
             }
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(time_out));
@@ -205,7 +244,10 @@ public class SmsController : ControllerBase
                 messages = await GetUpdateIds(connection, userId, start_id);
             }
 
-            return Ok(new { success = true, messages = messages });            
+            return Ok(new GetUpdatesDto
+            {
+                Messages = messages
+            });
 
             void HandleMessage(object? sender, UserBroadcastEventArgs args)
             {
@@ -218,12 +260,19 @@ public class SmsController : ControllerBase
     }
 
     [HttpGet("GetMessage")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(GetUpdatesDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(SimpleErrorResponeDto))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetMessage([FromQuery, Required] int message_id)
     {
         var username = GetUsername();
         if (username == null)
         {
-            return BadRequest(new { success = false, message = "No username given"});
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "No username given"
+            });
         }
 
         var messages = new List<int>();
@@ -233,8 +282,17 @@ public class SmsController : ControllerBase
             await connection.OpenAsync();
 
             var userId = await GetOrCreateUserId(connection, username);
+            if (userId == -1)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    new SimpleErrorResponeDto
+                {
+                    Message = "Something went wrong"
+                });
+            }
 
-            string sqlQuery = "SELECT created_at, number_from, number_to, message FROM messages WHERE user_id = @user_id AND id = @message_id limit 1";
+            string sqlQuery = "SELECT created_at, number_from, number_to, message "
+                + "FROM messages WHERE user_id = @user_id AND id = @message_id limit 1";
 
             using (var command = new MySqlCommand(sqlQuery, connection))
             {
@@ -245,67 +303,88 @@ public class SmsController : ControllerBase
                 {
                     while (await reader.ReadAsync())
                     {
-                        return Ok(new
+                        return Ok(new MessageDTO
                         {
-                            success = true,
-                            createdAt = reader.GetDateTime(0),
-                            from = reader.GetString(1),
-                            to = reader.GetString(2),
-                            message = reader.GetString(3)
+                            CreatedAt = reader.GetDateTime(0),
+                            From = reader.GetString(1),
+                            To = reader.GetString(2),
+                            Message = reader.GetString(3)
                         });
                     }
                 }
             }
         }
 
-        return NotFound(new { success = false, message = "Message not found"});
+        return NotFound(new SimpleErrorResponeDto
+        {
+            Message = "Message not found"
+        });
     }
 
 #region Helpers
-    private async Task<UInt32?> GetUserId(MySqlConnection connection, string username)
+    private async Task<UInt32?> GetUserId(MySqlConnection connection,
+        MySqlTransaction transaction,
+        string username)
     {
         using(var command = new MySqlCommand("SELECT id FROM users WHERE username = @username",
-            connection))
+            connection, transaction))
         {
             command.Parameters.AddWithValue("@username", username);
             return (UInt32?) await command.ExecuteScalarAsync();
         }
     }
 
-    private async Task<UInt32> GetOrCreateUserId(MySqlConnection connection, string username)
+    private async Task<int> GetOrCreateUserId(MySqlConnection connection, string username)
     {
-        using(var command = new MySqlCommand("UPDATE users SET last_access = CURRENT_TIMESTAMP " +
-            "WHERE username = @username",
-            connection))
+        using (var transaction = connection.BeginTransaction())
         {
-            command.Parameters.AddWithValue("@username", username);
-            await command.ExecuteNonQueryAsync();
+            try
+            {
+                using (var command = new MySqlCommand("UPDATE users SET last_access = CURRENT_TIMESTAMP " +
+                    "WHERE username = @username",
+                    connection, transaction))
+                {
+                    command.Parameters.AddWithValue("@username", username);
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                var userId = await GetUserId(connection, transaction, username);
+                if (userId != null)
+                {
+                    return (int) userId.Value;
+                }
+
+                using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
+                    "VALUES (@username, @tag)",
+                    connection))
+                {
+                    var tag = _whitespaceRegex.Replace(username, "");
+                    tag = tag.Substring(0, Math.Min(16, tag.Length)).ToUpper();
+                    command.Parameters.AddWithValue("@tag", tag);
+                    command.Parameters.AddWithValue("@username", username);
+
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                userId = await GetUserId(connection, transaction, username);
+
+                transaction.Commit();
+
+                return (int) userId.Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Exception in GetOrCreateUserId(): {ex}");
+                transaction.Rollback();
+
+                return -1;
+            }
         }
-
-        var userId = await GetUserId(connection, username);
-        if (userId != null)
-        {
-            return userId.Value;
-        }
-
-        using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
-            "VALUES (@username, @tag)",
-            connection))
-        {
-            var tag = _whitespaceRegex.Replace(username, "");
-            tag = tag.Substring(0, Math.Min(16, tag.Length)).ToUpper();
-            command.Parameters.AddWithValue("@tag", tag);
-            command.Parameters.AddWithValue("@username", username);
-
-            await command.ExecuteNonQueryAsync();
-        }
-
-        userId = await GetUserId(connection, username);
-
-        return userId.Value;
     }
 
-    private async Task<List<int>> GetUpdateIds(MySqlConnection connection, UInt32 userId, int start_id)
+    private async Task<List<int>> GetUpdateIds(MySqlConnection connection,
+        int userId,
+        int start_id)
     {
         var messages = new List<int>();
 
