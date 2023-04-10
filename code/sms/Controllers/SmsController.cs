@@ -10,12 +10,12 @@ namespace sms.Controllers;
 public class SmsController : ControllerBase
 {
     private readonly ILogger<SmsController> _logger;
-    private readonly IUserBroadcast _userBroadcast;
+    private readonly IBroadcaster _userBroadcast;
     private readonly string _connectionString;
     private readonly string _usernameHeader;
 
     public SmsController(ILogger<SmsController> logger,
-        IUserBroadcast userBroadcast,
+        IBroadcaster userBroadcast,
         IConfiguration configuration)
     {
         _logger = logger;
@@ -27,7 +27,9 @@ public class SmsController : ControllerBase
     private string? GetUsername() => Request.Headers[_usernameHeader].FirstOrDefault();
 
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
+    private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
 
+    /* End point called by the servier with the SMS daemon, when a net SMS is received on the modem */
     [HttpPost("NewMessage")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
     public async Task<IActionResult> NewMessage([FromBody] NewMessageDto data)
@@ -81,6 +83,114 @@ public class SmsController : ControllerBase
             /* Notify waiting clients */
             _userBroadcast.NewMessage(userId);
         }
+
+        return Ok(new SimpleOkResponeDto());
+    }
+
+    /* End point called by the servier with the SMS daemon, to check if any message need sending */
+    [HttpGet("GetSendMessageUpdates")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<SendMessageUpdateResultsDto>))]
+    public async Task<IActionResult> GetSendMessageUpdates(
+        [FromQuery(Name = "start_id"), Required] long startId,
+        [FromQuery(Name = "time_out")] int timeOut = 300)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var messages = new List<SendMessageUpdateDto>();
+
+        messages = await GetSendMessageUpdates(connection, startId);
+        if (messages.Count > 0 || timeOut == 0)
+        {
+            return Ok(new SendMessageUpdateResultsDto
+            {
+                Messages = messages
+            });
+        }
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeOut));
+
+        /* Wait for messages */
+        try
+        {
+            _userBroadcast.NewSubmitMessage += HandleMessage;
+            await Task.Delay(-1, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore
+        }
+        finally
+        {
+            _userBroadcast.NewSubmitMessage -= HandleMessage;
+        }
+
+        if (cts.IsCancellationRequested)
+        {
+            messages = await GetSendMessageUpdates(connection, startId);
+        }
+
+        return Ok(new SendMessageUpdateResultsDto
+        {
+            Messages = messages
+        });
+
+        void HandleMessage(object? sender, NewSubmitMessageEventArgs args)
+        {
+            cts?.Cancel();
+        }
+    }
+
+    [HttpPost("SendMessage")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
+    public async Task<IActionResult> SendMessage([FromBody] SendMessageDto data)
+    {
+        var username = GetUsername();
+        if (username == null)
+        {
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "No username given"
+            });
+        }
+
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var userId = await GetOrCreateUserId(connection, username);
+
+        /* Valiate the phone number */
+        if (!_validateNumberRegex.IsMatch(data.To))
+        {
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "Invalid to number format"
+            });
+        }
+
+        if (!_validateNumberRegex.IsMatch(data.From))
+        {
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "Invalid from number format"
+            });
+        }
+
+        using (var command = new MySqlCommand("INSERT INTO send_messages " +
+            "(user_id, number_from, number_to, message)" +
+            "VALUES (@userId, @number_from, @number_to, @message)",
+            connection))
+        {
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@number_from", data.From);
+            command.Parameters.AddWithValue("@number_to", data.To);
+            command.Parameters.AddWithValue("@message", data.Message);
+
+            await command.ExecuteNonQueryAsync();
+        }
+
+        _userBroadcast?.SubmitMessage(data);
 
         return Ok(new SimpleOkResponeDto());
     }
@@ -190,7 +300,7 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetUpdates(
         [FromQuery(Name = "start_id"), Required] long startId,
-        [FromQuery(Name = "time_out")] int timeOut = 300)
+        [FromQuery(Name = "time_out")] int timeOut = 0)
     {
         var username = GetUsername();
         if (username == null)
@@ -252,7 +362,7 @@ public class SmsController : ControllerBase
             Messages = messages
         });
 
-        void HandleMessage(object? sender, UserBroadcastEventArgs args)
+        void HandleMessage(object? sender, NewMessageSentEventArgs args)
         {
             if (args.UserId == userId)
             {
@@ -378,6 +488,38 @@ public class SmsController : ControllerBase
 
             return -1;
         }
+    }
+
+    private async Task<List<SendMessageUpdateDto>> GetSendMessageUpdates(
+        MySqlConnection connection,
+        long startId)
+    {
+        var messages = new List<SendMessageUpdateDto>();
+
+        using var command = new MySqlCommand(
+            "SELECT id, user_id, number_from, number_to, message, created_at FROM send_messages " +
+            "WHERE id >= @start_id ORDER BY id limit 1000",
+            connection);
+        command.Parameters.AddWithValue("@start_id", startId);
+
+        using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var message = new SendMessageUpdateDto
+                {
+                    Id = reader.GetInt64(0),
+                    UserId = reader.GetInt64(1),
+                    From = reader.GetString(2),
+                    To = reader.GetString(3),
+                    Message = reader.GetString(4),
+                    CreatedAt = reader.GetDateTime(5)
+                };
+                messages.Add(message);
+            }
+        }
+
+        return messages;
     }
 
     private async Task<List<long>> GetUpdateIds(MySqlConnection connection,

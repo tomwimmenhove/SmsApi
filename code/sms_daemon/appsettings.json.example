@@ -1,6 +1,7 @@
 {
     "Service": {
       "BaseUrl": "http://localhost:5001/sms/"
-    }
+    },
+    "StartIdFile": "/var/lib/sms_daemon/start_id"
   }
   

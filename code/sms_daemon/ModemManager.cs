@@ -10,7 +10,7 @@ public class ModemManagerException : Exception
 }
 public class ModemManager
 {
-    private Regex ValidateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
+    private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
 
     private const string _mmcli = "/usr/bin/mmcli";
 
@@ -81,24 +81,12 @@ public class ModemManager
         return JsonSerializer.Deserialize<ModemManagerSmsDto>(result.StdOut);
     }
 
-    public bool DeleteSms(string smsId)
-    {
-        var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-delete-sms {smsId}");
-        return result.Success;
-    }
-
-    private bool Send(string smsId)
-    {
-        var result = Execute.Run(_mmcli, $"-m {Modem} -s {smsId} --send");
-        return result.Success;
-    }
-
-    public bool SendSms(string number, string message)
+    public string? CreateSms(string number, string message)
     {
         /* Valiate the phone number */
-        if (!ValidateNumberRegex.IsMatch(number))
+        if (!_validateNumberRegex.IsMatch(number))
         {
-            return false;
+            return null;
         }
 
         /* Because mmcli can't deal with ' and " well AND because I'm a lazy fuck, use a helper
@@ -110,17 +98,21 @@ public class ModemManager
         var result = Execute.Run(createSmsHelper, $"{Modem} \"{number}\"", message);
         if (!result.Success)
         {
-            Console.Error.WriteLine($"{createSmsHelper} with error code {result.ExitCode}");
-            return false;
+            return null;
         }
 
-        if (!Send(result.StdOut))
-        {
-            return false;
-        }
+        return result.StdOut;
+    }
 
-        DeleteSms(result.StdOut);
+    public bool SendSms(string smsId)
+    {
+        var result = Execute.Run(_mmcli, $"-m {Modem} -s {smsId} --send");
+        return result.Success;
+    }
 
-        return true;
+    public bool DeleteSms(string smsId)
+    {
+        var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-delete-sms {smsId}");
+        return result.Success;
     }
 }

@@ -1,4 +1,4 @@
-using sms;
+using sms.Controllers;
 using Microsoft.OpenApi.Models;
 
 IConfiguration configuration = new ConfigurationBuilder()
@@ -7,7 +7,7 @@ IConfiguration configuration = new ConfigurationBuilder()
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddSingleton(typeof(IUserBroadcast), new UserBroadcast());
+builder.Services.AddSingleton(typeof(IBroadcaster), new Broadcaster());
 builder.Services.AddSingleton(configuration);
 
 builder.WebHost.ConfigureKestrel(options =>
