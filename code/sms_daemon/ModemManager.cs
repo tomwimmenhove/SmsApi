@@ -12,6 +12,7 @@ public class ModemManager
 {
     private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
 
+    private readonly object _mmcliAtomic = new();
     private const string _mmcli = "/usr/bin/mmcli";
 
     public string Modem { get; }
@@ -53,13 +54,21 @@ public class ModemManager
 
     public bool Enable()
     {
-        var result = Execute.Run(_mmcli, $"-e -m {Modem}");
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(_mmcli, $"-e -m {Modem}");
+        }
         return result.Success;
     }
 
     public ModemManagerListSmsDto? ListSmsIds()
     {
-        var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-list-sms --output-json");
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(_mmcli, $"-m {Modem} --messaging-list-sms --output-json");
+        }
         if (!result.Success)
         {
             return null;
@@ -70,7 +79,11 @@ public class ModemManager
 
     public ModemManagerSmsDto? GetSms(string smsId)
     {
-        var result = Execute.Run(_mmcli, $"-m {Modem} --sms {smsId} --output-json");
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(_mmcli, $"-m {Modem} --sms {smsId} --output-json");
+        }
         if (!result.Success)
         {
             return null;
@@ -95,7 +108,11 @@ public class ModemManager
             Path.GetDirectoryName(Assembly.GetEntryAssembly().Location),
             "create_sms");
 
-        var result = Execute.Run(createSmsHelper, $"{Modem} \"{number}\"", message);
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(createSmsHelper, $"{Modem} \"{number}\"", message);
+        }
         if (!result.Success)
         {
             return null;
@@ -106,13 +123,21 @@ public class ModemManager
 
     public bool SendSms(string smsId)
     {
-        var result = Execute.Run(_mmcli, $"-m {Modem} -s {smsId} --send");
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(_mmcli, $"-m {Modem} -s {smsId} --send");
+        }
         return result.Success;
     }
 
     public bool DeleteSms(string smsId)
     {
-        var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-delete-sms {smsId}");
+        ExecuteResult result;
+        lock(_mmcliAtomic)
+        {
+            result = Execute.Run(_mmcli, $"-m {Modem} --messaging-delete-sms {smsId}");
+        }
         return result.Success;
     }
 }

@@ -144,7 +144,7 @@ public class Daemon
 
         var toNumber = $"+{modem.Numbers.First()}";
 
-        Console.WriteLine($"Message \"{sms.Sms.Content.Text}\" " +
+        Console.WriteLine($"Received message \"{sms.Sms.Content.Text}\" " +
             $"from \"{sms.Sms.Content.Number}\" " +
             $"to \"{toNumber}\" ");
 
@@ -252,6 +252,10 @@ public class Daemon
                 {
                     startId = message.Id + 1;
                 }
+
+                Console.WriteLine($"Sending message \"{message.Message}\" " +
+                    $"from \"{message.From}\" " +
+                    $"to \"{message.To}\" ");
 
                 lock (_mmcliLocker)
                 {
