@@ -35,13 +35,13 @@ public class GetTagDto
 public class GetUpdatesDto
 {
     public bool Success { get; set; } = true;
-    public List<int> Messages { get; set; } = default!;
+    public List<long> Messages { get; set; } = default!;
 }
 
 public class GetMessageDto
 {
     public bool Success { get; set; } = true;
-    public List<int> Messages { get; set; } = default!;
+    public List<long> Messages { get; set; } = default!;
 }
 
 public class MessageDTO

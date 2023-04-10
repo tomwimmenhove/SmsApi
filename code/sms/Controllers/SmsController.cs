@@ -9,8 +9,6 @@ namespace sms.Controllers;
 [Route("[controller]")]
 public class SmsController : ControllerBase
 {
-    private Guid _testGuid = Guid.NewGuid();
-
     private readonly ILogger<SmsController> _logger;
     private readonly IUserBroadcast _userBroadcast;
     private readonly string _connectionString;
@@ -39,7 +37,7 @@ public class SmsController : ControllerBase
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        var userId = -1;
+        long userId = -1;
         using (var command = new MySqlCommand("SELECT id FROM users WHERE tag = @tag",
             connection))
         {
@@ -48,7 +46,7 @@ public class SmsController : ControllerBase
             var result = await command.ExecuteScalarAsync();
             if (result != null)
             {
-                userId = (int)(uint)result;
+                userId = (long)result;
             }
         }
 
@@ -81,7 +79,7 @@ public class SmsController : ControllerBase
             }
 
             /* Notify waiting clients */
-            _userBroadcast.NewMessage((uint)userId);
+            _userBroadcast.NewMessage(userId);
         }
 
         return Ok(new SimpleOkResponeDto());
@@ -191,7 +189,7 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetUpdates(
-        [FromQuery(Name = "start_id"), Required] int startId,
+        [FromQuery(Name = "start_id"), Required] long startId,
         [FromQuery(Name = "time_out")] int timeOut = 300)
     {
         var username = GetUsername();
@@ -203,7 +201,7 @@ public class SmsController : ControllerBase
             });
         }
 
-        var messages = new List<int>();
+        var messages = new List<long>();
 
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
@@ -268,7 +266,7 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetMessage(
-        [FromQuery(Name = "message_id"), Required] int messageId)
+        [FromQuery(Name = "message_id"), Required] long messageId)
     {
         var username = GetUsername();
         if (username == null)
@@ -278,8 +276,6 @@ public class SmsController : ControllerBase
                 Message = "No username given"
             });
         }
-
-        var messages = new List<int>();
 
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
@@ -324,14 +320,14 @@ public class SmsController : ControllerBase
     }
 
     #region Helpers
-    private async Task<UInt32?> GetUserId(MySqlConnection connection,
+    private async Task<long?> GetUserId(MySqlConnection connection,
         MySqlTransaction transaction, string username)
     {
         using var command = new MySqlCommand("SELECT id FROM users WHERE username = @username",
             connection, transaction);
 
         command.Parameters.AddWithValue("@username", username);
-        return (UInt32?)await command.ExecuteScalarAsync();
+        return (long?)await command.ExecuteScalarAsync();
     }
 
     private string UsernameToTag(string username)
@@ -340,7 +336,7 @@ public class SmsController : ControllerBase
         return tag.Substring(0, Math.Min(16, tag.Length)).ToUpper();
     }
 
-    private async Task<int> GetOrCreateUserId(MySqlConnection connection, string username)
+    private async Task<long> GetOrCreateUserId(MySqlConnection connection, string username)
     {
         using var transaction = connection.BeginTransaction();
         try
@@ -356,7 +352,7 @@ public class SmsController : ControllerBase
             var userId = await GetUserId(connection, transaction, username);
             if (userId != null)
             {
-                return (int)userId.Value;
+                return userId.Value;
             }
 
             using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
@@ -373,7 +369,7 @@ public class SmsController : ControllerBase
 
             transaction.Commit();
 
-            return (int)userId.Value;
+            return userId.Value;
         }
         catch (Exception ex)
         {
@@ -384,10 +380,10 @@ public class SmsController : ControllerBase
         }
     }
 
-    private async Task<List<int>> GetUpdateIds(MySqlConnection connection,
-        int userId, int startId)
+    private async Task<List<long>> GetUpdateIds(MySqlConnection connection,
+        long userId, long startId)
     {
-        var messages = new List<int>();
+        var messages = new List<long>();
 
         using var command = new MySqlCommand("SELECT id FROM messages " +
                 "WHERE user_id = @user_id AND id >= @start_id ORDER BY id limit 1000",
@@ -399,7 +395,7 @@ public class SmsController : ControllerBase
         {
             while (await reader.ReadAsync())
             {
-                var id = reader.GetInt32(0);
+                var id = reader.GetInt64(0);
                 messages.Add(id);
             }
         }

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace sms_daemon;
 
@@ -6,9 +8,10 @@ public class ModemManagerException : Exception
 {
     public ModemManagerException(string message) : base(message) { }
 }
-
 public class ModemManager
 {
+    private Regex ValidateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
+
     private const string _mmcli = "/usr/bin/mmcli";
 
     public string Modem { get; }
@@ -73,6 +76,8 @@ public class ModemManager
             return null;
         }
 
+        File.AppendAllText("/tmp/test.log", $"{result.StdOut}\n\n");
+
         return JsonSerializer.Deserialize<ModemManagerSmsDto>(result.StdOut);
     }
 
@@ -80,5 +85,42 @@ public class ModemManager
     {
         var result = Execute.Run(_mmcli, $"-m {Modem} --messaging-delete-sms {smsId}");
         return result.Success;
+    }
+
+    private bool Send(string smsId)
+    {
+        var result = Execute.Run(_mmcli, $"-m {Modem} -s {smsId} --send");
+        return result.Success;
+    }
+
+    public bool SendSms(string number, string message)
+    {
+        /* Valiate the phone number */
+        if (!ValidateNumberRegex.IsMatch(number))
+        {
+            return false;
+        }
+
+        /* Because mmcli can't deal with ' and " well AND because I'm a lazy fuck, use a helper
+         * function to create the sms using a python script */
+        var createSmsHelper = Path.Combine(
+            Path.GetDirectoryName(Assembly.GetEntryAssembly().Location),
+            "create_sms");
+
+        var result = Execute.Run(createSmsHelper, $"{Modem} \"{number}\"", message);
+        if (!result.Success)
+        {
+            Console.Error.WriteLine($"{createSmsHelper} with error code {result.ExitCode}");
+            return false;
+        }
+
+        if (!Send(result.StdOut))
+        {
+            return false;
+        }
+
+        DeleteSms(result.StdOut);
+
+        return true;
     }
 }

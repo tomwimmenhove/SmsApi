@@ -52,6 +52,9 @@ public class ModemManagerSmsEntryDto
 {
     [JsonPropertyName("content")]
     public ModemManagerSmsContentDto Content { get; set; } = default!;
+
+    [JsonPropertyName("properties")]
+    public ModemManagerSmsPropertiesDto Properties { get; set; } = default!;
 }
 
 public class ModemManagerSmsContentDto
@@ -63,3 +66,8 @@ public class ModemManagerSmsContentDto
     public string Text { get; set; } = default!;
 }
 
+public class ModemManagerSmsPropertiesDto
+{
+    [JsonPropertyName("pdu-type")]
+    public string PduType { get; set; } = default!;
+}

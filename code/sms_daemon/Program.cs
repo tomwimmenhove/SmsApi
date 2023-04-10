@@ -12,8 +12,6 @@ if (baseUrl == null)
     return;
 }
 
-var result = Execute.Run("mmcli", "-m 0 --output-json");
-
 var listResult = ModemManager.ListModems();
 if (listResult == null)
 {
@@ -60,6 +58,7 @@ var apiClient = new SmsApiClient(new HttpClient(), baseUrl);
 
 while (true)
 {
+    var messageList = new List<(ModemManager modem, string smsId)>();
     foreach(var modem in modemList)
     {
         var smsIdsResult = modem.ListSmsIds();
@@ -68,41 +67,59 @@ while (true)
             Console.Error.WriteLine($"Failed to retrieve messages from modem {modem.Modem}");
             continue;
         }
-
-        var toNumber = $"+{modem.Numbers.First()}";
         
         foreach(var smsId in smsIdsResult.Sms)
         {
-            var sms = modem.GetSms(smsId);
-            if (sms?.Sms?.Content == null)
-            {
-                Console.Error.WriteLine($"Failed to retrieve sms ID {smsId} from modem {modem.Modem}");
-                continue;
-            }
-
-            Console.Write($"Message \"{sms.Sms.Content.Text}\" " +
-                $"from \"{sms.Sms.Content.Number}\" " +
-                $"to \"{toNumber}\" ");
-
-            var dto = new NewMessageDto
-            {
-                From = sms.Sms.Content.Number,
-                To = toNumber,
-                Message = sms.Sms.Content.Text
-            };
-
-            var success = await apiClient.PostNewMessageAsync(dto);
-            if (success)
-            {
-                modem.DeleteSms(smsId);
-                Console.WriteLine($"Sent to API");
-            }
-            else
-            {
-                Console.WriteLine($"Not sent to API");
-            }
+            messageList.Add((modem,smsId));
         }
     }
+    
+    // Apparently, there's a bug in mmcli that, if you read the messages
+    // too quickly after the --messaging-list-sms call, it returns nonsense. :(
+    // This is why we'll do the delay first, and then read the messages and 
+    // send them to the API endpoint
+    Thread.Sleep(500);
 
-    Thread.Sleep(1);
+    if (!messageList.Any())
+    {
+        continue;
+    }
+
+    foreach ((var modem, var smsId) in messageList)
+    {
+        var sms = modem.GetSms(smsId);
+        if (sms?.Sms?.Content == null)
+        {
+            Console.Error.WriteLine($"Failed to retrieve sms ID {smsId} from modem {modem.Modem}");
+            continue;
+        }
+
+        if (sms.Sms.Properties?.PduType != "deliver")
+        {
+            continue;
+        }
+
+        var toNumber = $"+{modem.Numbers.First()}";
+
+        Console.WriteLine($"Message \"{sms.Sms.Content.Text}\" " +
+            $"from \"{sms.Sms.Content.Number}\" " +
+            $"to \"{toNumber}\" ");
+
+        var dto = new NewMessageDto
+        {
+            From = sms.Sms.Content.Number,
+            To = toNumber,
+            Message = sms.Sms.Content.Text
+        };
+
+        var success = await apiClient.PostNewMessageAsync(dto);
+        if (success)
+        {
+            modem.DeleteSms(smsId);
+        }
+        else
+        {
+            Console.WriteLine($"Failed to send message to API endpoint.");
+        }
+    }
 }

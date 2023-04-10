@@ -2,9 +2,9 @@ namespace sms;
 
 public class UserBroadcastEventArgs : EventArgs
 {
-    public uint UserId { get; set; }
+    public long UserId { get; set; }
     
-    public UserBroadcastEventArgs(uint userId)
+    public UserBroadcastEventArgs(long userId)
     {
         UserId = userId;
     }
@@ -13,13 +13,13 @@ public class UserBroadcastEventArgs : EventArgs
 public interface IUserBroadcast
 {
     event EventHandler<UserBroadcastEventArgs>? NewMessageSent;
-    void NewMessage(uint userId);
+    void NewMessage(long userId);
 }
 
 public class UserBroadcast : IUserBroadcast
 {
     public event EventHandler<UserBroadcastEventArgs>? NewMessageSent;
-    public void NewMessage(uint userId)
+    public void NewMessage(long userId)
     {
         NewMessageSent?.Invoke(this, new UserBroadcastEventArgs(userId));
     }
