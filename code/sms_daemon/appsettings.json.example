@@ -2,6 +2,6 @@
     "Service": {
       "BaseUrl": "http://localhost:5001/sms/"
     },
-    "StartIdFile": "/var/lib/sms_daemon/start_id"
-  }
-  
+    "StartIdFile": "/var/lib/sms_daemon/start_id",
+    "mmcli": "/opt/mmcli/bin/mmcli"
+}

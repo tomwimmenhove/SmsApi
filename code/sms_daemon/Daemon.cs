@@ -1,4 +1,3 @@
-using System;
 using sms_daemon;
 using Microsoft.Extensions.Configuration;
 
@@ -34,7 +33,13 @@ public class Daemon
         }
         _startIdFile = startIdFile;        
 
-        var listResult = ModemManager.ListModems();
+        var mmcli = configuration.GetValue<string>("Mmcli");
+        if (mmcli == null)
+        {
+            throw new DaemonException("Mmcli not set in appsettings.json");
+        }
+
+        var listResult = ModemManager.ListModems(mmcli);
         if (listResult == null)
         {
             throw new DaemonException("Failed to get a list of available modems");
@@ -50,7 +55,7 @@ public class Daemon
             ModemManager modem;
             try
             {
-                modem = new ModemManager(modemName);
+                modem = new ModemManager(modemName, mmcli);
             }
             catch (ModemManagerException e)
             {
@@ -169,26 +174,29 @@ public class Daemon
     private void SendMessageToModem(SendMessageUpdateDto message)
     {
         var modem = _modemList.FirstOrDefault(x => x.Numbers.Any(x => $"+{x}" == message.From));
-        if (modem != null)
+        if (modem == null)
         {
-            var smsId = modem.CreateSms(message.To, message.Message);
-            if (smsId == null)
-            {
-                Console.Error.WriteLine($"Failed to create SMS message ID {message.Id}");
-                return;
-            }
+            Console.Error.WriteLine($"No suitable modems found for number {message.From}");
+            return;
+        }
 
-            if (!modem.SendSms(smsId))
-            {
-                Console.Error.WriteLine($"Failed to send SMS message ID {message.Id} ({smsId})");
-                return;
-            }
+        var smsId = modem.CreateSms(message.To, message.Message);
+        if (smsId == null)
+        {
+            Console.Error.WriteLine($"Failed to create SMS message ID {message.Id}");
+            return;
+        }
 
-            if (!modem.DeleteSms(smsId))
-            {
-                Console.Error.WriteLine($"Failed to delete SMS message ID {message.Id} ({smsId})");
-                return;
-            }
+        if (!modem.SendSms(smsId))
+        {
+            Console.Error.WriteLine($"Failed to send SMS message ID {message.Id} ({smsId})");
+            return;
+        }
+
+        if (!modem.DeleteSms(smsId))
+        {
+            Console.Error.WriteLine($"Failed to delete SMS message ID {message.Id} ({smsId})");
+            return;
         }
     }
 

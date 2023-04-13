@@ -13,13 +13,15 @@ public class ModemManager
     private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
 
     private readonly object _mmcliAtomic = new();
-    private const string _mmcli = "/usr/bin/mmcli";
+    private readonly string _mmcli;
 
     public string Modem { get; }
     public string[] Numbers { get; }
 
-    public ModemManager(string modem)
+    public ModemManager(string modem, string mmcli)
     {
+        _mmcli = mmcli;
+        
         var info = GetModemInfo(modem);
         if (info == null)
         {
@@ -30,22 +32,41 @@ public class ModemManager
         Modem = modem;
     }
 
-    public static ModemManagerListModemsDto? ListModems()
+    private static void PrintErrors(ExecuteResult result)
     {
-        var result = Execute.Run(_mmcli, "--list-modems --output-json");
+        var stdOutLines = result.StdOut.Split("\n");
+        var stdErrLines = result.StdErr.Split("\n");
+
+        Console.Error.WriteLine("mmcli failed:");
+        foreach(var line in stdOutLines)
+        {
+            Console.Error.WriteLine($"stdout: {line}");
+        }
+
+        foreach(var line in stdErrLines)
+        {
+            Console.Error.WriteLine($"stderr: {line}");
+        }
+    }
+
+    public static ModemManagerListModemsDto? ListModems(string mmcli)
+    {
+        var result = Execute.Run(mmcli, "--list-modems --output-json");
         if (!result.Success)
         {
+            PrintErrors(result);
             return null;
         }
 
         return JsonSerializer.Deserialize<ModemManagerListModemsDto>(result.StdOut);
     }
 
-    public static ModemManagerModemInfoDto? GetModemInfo(string modem)
+    private ModemManagerModemInfoDto? GetModemInfo(string modem)
     {
         var result = Execute.Run(_mmcli, $"-m {modem} --output-json");
         if (!result.Success)
         {
+            PrintErrors(result);
             return null;
         }
 
@@ -71,6 +92,7 @@ public class ModemManager
         }
         if (!result.Success)
         {
+            PrintErrors(result);
             return null;
         }
 
@@ -86,10 +108,9 @@ public class ModemManager
         }
         if (!result.Success)
         {
+            PrintErrors(result);
             return null;
         }
-
-        File.AppendAllText("/tmp/test.log", $"{result.StdOut}\n\n");
 
         return JsonSerializer.Deserialize<ModemManagerSmsDto>(result.StdOut);
     }
@@ -99,26 +120,34 @@ public class ModemManager
         /* Valiate the phone number */
         if (!_validateNumberRegex.IsMatch(number))
         {
+            Console.Error.WriteLine($"Invalid number: \"{number}\"");
             return null;
         }
-
-        /* Because mmcli can't deal with ' and " well AND because I'm a lazy fuck, use a helper
-         * function to create the sms using a python script */
-        var createSmsHelper = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetEntryAssembly().Location),
-            "create_sms");
 
         ExecuteResult result;
         lock(_mmcliAtomic)
         {
-            result = Execute.Run(createSmsHelper, $"{Modem} \"{number}\"", message);
+            result = Execute.Run(_mmcli,
+                $"-m {Modem} --messaging-create-sms=\"number='{number}'\" " + 
+                "--messaging-create-sms-with-text=/dev/stdin",
+                message);
         }
+
         if (!result.Success)
         {
+            PrintErrors(result);
             return null;
         }
 
-        return result.StdOut;
+        var tokens = result.StdOut.Split(":");
+        if (tokens.Length != 2)
+        {
+            Console.Error.WriteLine("Unexpected response from mmcli");
+            PrintErrors(result);
+            return null;
+        }
+
+        return tokens[1].Trim();
     }
 
     public bool SendSms(string smsId)
