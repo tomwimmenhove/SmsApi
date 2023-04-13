@@ -52,34 +52,21 @@ public class SmsController : ControllerBase
             }
         }
 
-        if (userId == -1)
+        using (var command = new MySqlCommand("INSERT INTO messages " +
+            "(user_id, number_from, number_to, message)" +
+            "VALUES (@userId, @number_from, @number_to, @message)",
+            connection))
         {
-            using (var command = new MySqlCommand("INSERT INTO junk_messages (number_from, number_to, message)" +
-                "VALUES (@number_from, @number_to, @message)",
-                connection))
-            {
-                command.Parameters.AddWithValue("@number_from", data.From);
-                command.Parameters.AddWithValue("@number_to", data.To);
-                command.Parameters.AddWithValue("@message", data.Message);
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@number_from", data.From);
+            command.Parameters.AddWithValue("@number_to", data.To);
+            command.Parameters.AddWithValue("@message", data.Message);
 
-                await command.ExecuteNonQueryAsync();
-            }
+            await command.ExecuteNonQueryAsync();
         }
-        else
+
+        if (userId != -1)
         {
-            using (var command = new MySqlCommand("INSERT INTO messages " +
-                "(user_id, number_from, number_to, message)" +
-                "VALUES (@userId, @number_from, @number_to, @message)",
-                connection))
-            {
-                command.Parameters.AddWithValue("@userId", userId);
-                command.Parameters.AddWithValue("@number_from", data.From);
-                command.Parameters.AddWithValue("@number_to", data.To);
-                command.Parameters.AddWithValue("@message", data.Message);
-
-                await command.ExecuteNonQueryAsync();
-            }
-
             /* Notify waiting clients */
             _userBroadcast.NewMessage(userId);
         }
