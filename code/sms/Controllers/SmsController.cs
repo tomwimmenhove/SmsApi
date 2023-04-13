@@ -26,6 +26,9 @@ public class SmsController : ControllerBase
 
     private string? GetUsername() => Request.Headers[_usernameHeader].FirstOrDefault();
 
+    private string GetClientIp() => Request.Headers["X-Forwarded-For"].FirstOrDefault() ??
+        "unknown";
+
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
     private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
 
@@ -34,6 +37,9 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
     public async Task<IActionResult> NewMessage([FromBody] NewMessageDto data)
     {
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"NewMessage: from=\"{data.From}\", to=\"{data.To}\"");
+
         var tag = new string(data.Message.TakeWhile(x => !char.IsWhiteSpace(x)).ToArray()).Trim().ToUpper();
 
         using var connection = new MySqlConnection(_connectionString);
@@ -81,6 +87,9 @@ public class SmsController : ControllerBase
         [FromQuery(Name = "start_id"), Required] long startId,
         [FromQuery(Name = "time_out")] int timeOut = 300)
     {
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"GetSendMessageUpdates: start_id={startId}, time_out={timeOut}");
+            
         using var connection = new MySqlConnection(_connectionString);
         await connection.OpenAsync();
 
@@ -133,6 +142,9 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageDto data)
     {
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"SendMessage: from=\"{data.From}\", to=\"{data.To}\"");
+
         var username = GetUsername();
         if (username == null)
         {
@@ -187,6 +199,11 @@ public class SmsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> SetTag([FromQuery, Required] string tag)
     {
+        var username = GetUsername();
+
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"SetTag: username=\"{(username ?? "<NULL>")}\", tag=\"{tag}\"");
+
         tag = tag.Trim().ToUpper();
         if (tag.Length > 16)
         {
@@ -195,7 +212,6 @@ public class SmsController : ControllerBase
                 Message = "Tag can be no more than 16 characters"
             });
         }
-        var username = GetUsername();
         if (username == null)
         {
             return BadRequest(new SimpleErrorResponeDto
@@ -244,6 +260,10 @@ public class SmsController : ControllerBase
     public async Task<IActionResult> GetTag()
     {
         var username = GetUsername();
+
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"GetTag: username=\"{(username ?? "<NULL>")}\"");
+
         if (username == null)
         {
             return BadRequest(new SimpleErrorResponeDto
@@ -290,6 +310,11 @@ public class SmsController : ControllerBase
         [FromQuery(Name = "time_out")] int timeOut = 0)
     {
         var username = GetUsername();
+
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"GetUpdates: username=\"{(username ?? "<NULL>")}\", " +
+            $"start_id={startId}, time_out={timeOut}");
+
         if (username == null)
         {
             return BadRequest(new SimpleErrorResponeDto
@@ -366,6 +391,11 @@ public class SmsController : ControllerBase
         [FromQuery(Name = "message_id"), Required] long messageId)
     {
         var username = GetUsername();
+
+        _logger.LogInformation($"{GetClientIp()} - " +
+            $"GetMessage: username=\"{(username ?? "<NULL>")}\", " +
+            $"message_id={messageId}");
+            
         if (username == null)
         {
             return BadRequest(new SimpleErrorResponeDto

@@ -1,4 +1,17 @@
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "System": "Information",
+      "Microsoft": "None"
+    },
+    "Console": {
+      "FormatterName": "simple",
+      "FormatterOptions": {
+        "SingleLine": true
+      }
+    }
+  },
   "Database": {
     "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;"
   },
