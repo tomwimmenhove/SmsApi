@@ -27,6 +27,7 @@ public class SmsController : ControllerBase
     private string? GetUsername() => Request.Headers[_usernameHeader].FirstOrDefault();
 
     private string GetClientIp() => Request.Headers["X-Forwarded-For"].FirstOrDefault() ??
+        HttpContext.Connection.RemoteIpAddress?.ToString() ??
         "unknown";
 
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
