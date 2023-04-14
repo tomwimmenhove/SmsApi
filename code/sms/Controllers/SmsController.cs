@@ -9,6 +9,8 @@ namespace sms.Controllers;
 [Route("[controller]")]
 public class SmsController : ControllerBase
 {
+    private const int MaxTaglength = 16;
+
     private readonly ILogger<SmsController> _logger;
     private readonly IBroadcaster _userBroadcast;
     private readonly string _connectionString;
@@ -206,11 +208,11 @@ public class SmsController : ControllerBase
             $"SetTag: username=\"{(username ?? "<NULL>")}\", tag=\"{tag}\"");
 
         tag = tag.Trim().ToUpper();
-        if (tag.Length > 16)
+        if (tag.Length > MaxTaglength)
         {
             return BadRequest(new SimpleErrorResponeDto
             {
-                Message = "Tag can be no more than 16 characters"
+                Message = $"Tag can be no more than {MaxTaglength} characters"
             });
         }
         if (username == null)
@@ -221,35 +223,33 @@ public class SmsController : ControllerBase
             });
         }
 
-        using (var connection = new MySqlConnection(_connectionString))
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using (var command = new MySqlCommand("SELECT COUNT(*) FROM users " +
+            "WHERE tag = @tag and username != @username",
+            connection))
         {
-            await connection.OpenAsync();
-
-            using (var command = new MySqlCommand("SELECT COUNT(*) FROM users " +
-                "WHERE tag = @tag and username != @username",
-                connection))
+            command.Parameters.AddWithValue("@tag", tag);
+            command.Parameters.AddWithValue("@username", username);
+            if ((long)command.ExecuteScalar() > 0)
             {
-                command.Parameters.AddWithValue("@tag", tag);
-                command.Parameters.AddWithValue("@username", username);
-                if ((long)command.ExecuteScalar() > 0)
+                return BadRequest(new SimpleErrorResponeDto
                 {
-                    return BadRequest(new SimpleErrorResponeDto
-                    {
-                        Message = $"Tag \"{tag}\" is already in use"
-                    });
-                }
+                    Message = $"Tag \"{tag}\" is already in use"
+                });
             }
+        }
 
-            using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
-                "VALUES (@username, @tag)" +
-                "ON DUPLICATE KEY UPDATE tag = @tag, last_access = CURRENT_TIMESTAMP",
-                connection))
-            {
-                command.Parameters.AddWithValue("@tag", tag);
-                command.Parameters.AddWithValue("@username", username);
+        using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
+            "VALUES (@username, @tag)" +
+            "ON DUPLICATE KEY UPDATE tag = @tag, last_access = CURRENT_TIMESTAMP",
+            connection))
+        {
+            command.Parameters.AddWithValue("@tag", tag);
+            command.Parameters.AddWithValue("@username", username);
 
-                await command.ExecuteNonQueryAsync();
-            }
+            await command.ExecuteNonQueryAsync();
         }
 
         return Ok(new SimpleOkResponeDto());
@@ -258,6 +258,7 @@ public class SmsController : ControllerBase
     [HttpGet("GetTag")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(GetTagDto))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(SimpleErrorResponeDto))]
     public async Task<IActionResult> GetTag()
     {
         var username = GetUsername();
@@ -289,11 +290,43 @@ public class SmsController : ControllerBase
         }
 
         var tag = UsernameToTag(username);
+        string? foundTag = null;
+        for (var i = 0; i < 100; i++)
+        {
+            using (var command = new MySqlCommand("SELECT COUNT(*) FROM users " +
+                "WHERE tag = @tag",
+                connection))
+            {
+                command.Parameters.AddWithValue("@tag", tag);
+                command.Parameters.AddWithValue("@username", username);
+                if ((long)command.ExecuteScalar() == 0)
+                {
+                    foundTag = tag;
+                    break;
+                }
+            }
+
+            tag = tag.GetNext(MaxTaglength);
+            if (tag == null)
+            {
+                break;
+            }
+        }
+
+        if (foundTag == null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new SimpleErrorResponeDto
+                {
+                    Message = "Unable to get default tag name. Please set one manually"
+                });
+        }
+
         using (var command = new MySqlCommand("INSERT INTO users (username, tag)" +
                          "VALUES (@username, @tag)",
                          connection))
         {
-            command.Parameters.AddWithValue("@tag", tag);
+            command.Parameters.AddWithValue("@tag", foundTag);
             command.Parameters.AddWithValue("@username", username);
 
             await command.ExecuteNonQueryAsync();
@@ -461,7 +494,7 @@ public class SmsController : ControllerBase
     private string UsernameToTag(string username)
     {
         var tag = _whitespaceRegex.Replace(username, "");
-        return tag.Substring(0, Math.Min(16, tag.Length)).ToUpper();
+        return tag.Substring(0, Math.Min(MaxTaglength, tag.Length)).ToUpper();
     }
 
     private async Task<long> GetOrCreateUserId(MySqlConnection connection, string username)
