@@ -190,7 +190,6 @@ public class Daemon
         if (!modem.SendSms(smsId))
         {
             Console.Error.WriteLine($"Failed to send SMS message ID {message.Id} ({smsId})");
-            return;
         }
 
         if (!modem.DeleteSms(smsId))
