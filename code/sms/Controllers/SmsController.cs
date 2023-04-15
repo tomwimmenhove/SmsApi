@@ -34,6 +34,9 @@ public class SmsController : ControllerBase
 
     private static readonly Regex _whitespaceRegex = new Regex(@"\s+");
     private Regex _validateNumberRegex = new Regex(@"^\+?\d*$", RegexOptions.Compiled);
+    private Regex _antiSpamRegex = new Regex(
+        @"((http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?)",
+        RegexOptions.Compiled);
 
     /* End point called by the servier with the SMS daemon, when a net SMS is received on the modem */
     [HttpPost("NewMessage")]
@@ -154,6 +157,14 @@ public class SmsController : ControllerBase
             return BadRequest(new SimpleErrorResponeDto
             {
                 Message = "No username given"
+            });
+        }
+
+        if (_antiSpamRegex.IsMatch(data.Message))
+        {
+            return BadRequest(new SimpleErrorResponeDto
+            {
+                Message = "Message contains links"
             });
         }
 
