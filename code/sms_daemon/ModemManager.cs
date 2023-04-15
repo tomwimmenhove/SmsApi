@@ -18,7 +18,7 @@ public class ModemManager
     public string Modem { get; }
     public string[] Numbers { get; }
 
-    public ModemManager(string modem, string mmcli)
+    public ModemManager(string modem, string mmcli, IDictionary<string, string>? fixedNumbers)
     {
         _mmcli = mmcli;
         
@@ -28,7 +28,15 @@ public class ModemManager
             throw new ModemManagerException($"Failed to get information on modem {modem}");
         }
 
-        Numbers = info.Modem.Generic.OwnNumbers;
+        if (fixedNumbers != null &&
+            fixedNumbers.TryGetValue(info.Modem.ThreeGpp.Imei, out var fixedNumber))
+        {
+            Numbers = new[] { fixedNumber };
+        }
+        else
+        {
+            Numbers = info.Modem.Generic.OwnNumbers;
+        }
         Modem = modem;
     }
 

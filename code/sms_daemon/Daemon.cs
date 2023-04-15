@@ -19,6 +19,9 @@ public class Daemon
 
     public Daemon(IConfiguration configuration)
     {
+        var fixedNumbers = configuration.GetSection("FixedNumbers").GetChildren()
+                  .ToDictionary(x => x.Key, x => x.Value);
+
         var baseUrl = configuration.GetValue<string>("Service:BaseUrl");
         if (baseUrl == null)
         {
@@ -55,7 +58,7 @@ public class Daemon
             ModemManager modem;
             try
             {
-                modem = new ModemManager(modemName, mmcli);
+                modem = new ModemManager(modemName, mmcli, fixedNumbers);
             }
             catch (ModemManagerException e)
             {
