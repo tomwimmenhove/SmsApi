@@ -9,4 +9,7 @@ public class SmsControllerSettings
 
     [Required]
     public string UsernameHeader { get; set; } = default!;
+
+    [Required]
+    public string[] Numbers { get; set; } = default!;
 }

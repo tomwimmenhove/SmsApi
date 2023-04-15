@@ -143,6 +143,13 @@ public class SmsController : ControllerBase
         }
     }
 
+    [HttpGet("GetNumbers")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(GetNumbersResponeDto))]
+    public IActionResult GetNumbers() => Ok(new GetNumbersResponeDto
+    {
+        Numbers = _settings.Numbers
+    });
+
     [HttpPost("SendMessage")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SimpleOkResponeDto))]
     [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(SimpleErrorResponeDto))]

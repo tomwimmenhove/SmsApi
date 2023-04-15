@@ -14,6 +14,7 @@
   },
   "SmsController": {
     "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;",
-    "UsernameHeader": "X-RapidAPI-User"
+    "UsernameHeader": "X-RapidAPI-User",
+    "Numbers": [ "+0123456789" ]
   }
 }

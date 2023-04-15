@@ -59,6 +59,12 @@ public class SimpleErrorResponeDto
     public string Message { get; set; } = default!;
 }
 
+public class GetNumbersResponeDto
+{
+    public bool Success { get; set; } = true;
+    public string[] Numbers { get; set; } = default!;
+}
+
 public class GetTagDto
 {
     public bool Success { get; set; } = true;
