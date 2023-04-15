@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using MySql.Data.MySqlClient;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
 
 namespace sms.Controllers;
 
@@ -13,20 +14,19 @@ public class SmsController : ControllerBase
 
     private readonly ILogger<SmsController> _logger;
     private readonly IBroadcaster _userBroadcast;
-    private readonly string _connectionString;
-    private readonly string _usernameHeader;
+    
+    private readonly SmsControllerSettings _settings;
 
     public SmsController(ILogger<SmsController> logger,
         IBroadcaster userBroadcast,
-        IConfiguration configuration)
+        IOptions<SmsControllerSettings> appSettings)
     {
         _logger = logger;
         _userBroadcast = userBroadcast;
-        _connectionString = configuration.GetValue<string>("Database:ConnectionString")!;
-        _usernameHeader = configuration.GetValue<string>("Header:Username")!;
+        _settings = appSettings.Value;
     }
 
-    private string? GetUsername() => Request.Headers[_usernameHeader].FirstOrDefault();
+    private string? GetUsername() => Request.Headers[_settings.UsernameHeader].FirstOrDefault();
 
     private string GetClientIp() => Request.Headers["X-Forwarded-For"].FirstOrDefault() ??
         HttpContext.Connection.RemoteIpAddress?.ToString() ??
@@ -48,7 +48,7 @@ public class SmsController : ControllerBase
 
         var tag = new string(data.Message.TakeWhile(x => !char.IsWhiteSpace(x)).ToArray()).Trim().ToUpper();
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         long userId = -1;
@@ -96,7 +96,7 @@ public class SmsController : ControllerBase
         _logger.LogInformation($"{GetClientIp()} - " +
             $"GetSendMessageUpdates: start_id={startId}, time_out={timeOut}");
             
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         var messages = new List<SendMessageUpdateDto>();
@@ -168,7 +168,7 @@ public class SmsController : ControllerBase
             });
         }
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         var userId = await GetOrCreateUserId(connection, username);
@@ -234,7 +234,7 @@ public class SmsController : ControllerBase
             });
         }
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         using (var command = new MySqlCommand("SELECT COUNT(*) FROM users " +
@@ -285,7 +285,7 @@ public class SmsController : ControllerBase
             });
         }
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         using (var command = new MySqlCommand("SELECT tag FROM users " +
@@ -343,7 +343,7 @@ public class SmsController : ControllerBase
             await command.ExecuteNonQueryAsync();
         }
 
-        return Ok(new GetTagDto { Tag = tag });
+        return Ok(new GetTagDto { Tag = foundTag });
     }
 
     [HttpGet("GetUpdates")]
@@ -370,7 +370,7 @@ public class SmsController : ControllerBase
 
         var messages = new List<long>();
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         var userId = await GetOrCreateUserId(connection, username);
@@ -449,7 +449,7 @@ public class SmsController : ControllerBase
             });
         }
 
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_settings.ConnectionString);
         await connection.OpenAsync();
 
         var userId = await GetOrCreateUserId(connection, username);

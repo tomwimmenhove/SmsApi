@@ -2,13 +2,13 @@ using sms.Controllers;
 using Microsoft.OpenApi.Models;
 
 IConfiguration configuration = new ConfigurationBuilder()
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
     .Build();
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(typeof(IBroadcaster), new Broadcaster());
-builder.Services.AddSingleton(configuration);
+builder.Services.Configure<SmsControllerSettings>(configuration.GetSection("SmsController"));
 
 builder.WebHost.ConfigureKestrel(options =>
 {

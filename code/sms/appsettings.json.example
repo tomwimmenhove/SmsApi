@@ -12,10 +12,8 @@
       }
     }
   },
-  "Database": {
-    "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;"
-  },
-  "Header": {
-    "Username": "X-SomeAPI-User"
-  } 
+  "SmsController": {
+    "ConnectionString": "Server=localhost;Database=sms_api;Uid=xxx;....;",
+    "UsernameHeader": "X-RapidAPI-User"
+  }
 }
