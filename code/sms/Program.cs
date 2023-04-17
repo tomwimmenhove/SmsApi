@@ -12,7 +12,7 @@ builder.Services.Configure<SmsControllerSettings>(configuration.GetSection("SmsC
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5001);
+    options.Configure(configuration.GetSection("Kestrel"));
 });
 
 builder.Services.AddControllers();
