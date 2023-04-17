@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 const https = require('http');
 
 const username = 'tomwimmenhove'
@@ -10,11 +12,12 @@ const headers = {
 let startId = 1;
 
 async function getUpdates() {
-  const url = `${baseUrl}/getupdates?start_id=${startId}`;
+  const url = `${baseUrl}/getupdates?start_id=${startId}&time_out=60`;
   const response = await sendRequest(url);
   const body = JSON.parse(response);
 
-  if (body.success) {
+  console.log(body);
+if (body.success) {
     for (const messageId of body.messages) {
       await getMessage(messageId);
     }
