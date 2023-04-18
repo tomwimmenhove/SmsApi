@@ -63,7 +63,7 @@ public class SmsApiDb : IDisposable
         MySqlTransaction transaction)
     {
         var query = "UPDATE users SET " +
-            "last_access = CURRENT_TIMESTAMP, " +
+            "last_access = UTC_TIMESTAMP, " +
             "ip_address = @ip_address " +
             (tag != null ? ", tag = @tag " : string.Empty) +
             "WHERE id = @id";
