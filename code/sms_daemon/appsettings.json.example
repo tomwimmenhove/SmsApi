@@ -1,6 +1,8 @@
 {
     "Service": {
-      "BaseUrl": "http://localhost:5001/sms/"
+      "BaseUrl": "http://localhost:5001/sms/",
+      "SecretHeaders": "Some-Secret",
+      "SecretValue": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
     },
     "StartIdFile": "/var/lib/sms_daemon/start_id",
     "mmcli": "/opt/mmcli/bin/mmcli"

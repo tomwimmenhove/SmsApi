@@ -1,4 +1,5 @@
 using sms.Controllers;
+using sms.Auth;
 using Microsoft.OpenApi.Models;
 
 IConfiguration configuration = new ConfigurationBuilder()
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(typeof(IBroadcaster), new Broadcaster());
 builder.Services.Configure<SmsControllerSettings>(configuration.GetSection("SmsController"));
+builder.Services.Configure<ConnectionValidationSettings>(configuration.GetSection("Auth"));
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -27,6 +29,8 @@ if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
+
+app.UseMiddleware<ConnectionValidation>();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>

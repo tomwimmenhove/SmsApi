@@ -18,11 +18,11 @@ public class SmsController : ControllerBase
 
     public SmsController(ILogger<SmsController> logger,
         IBroadcaster userBroadcast,
-        IOptions<SmsControllerSettings> appSettings)
+        IOptions<SmsControllerSettings> settings)
     {
         _logger = logger;
         _userBroadcast = userBroadcast;
-        _settings = appSettings.Value;
+        _settings = settings.Value;
     }
 
     private string? GetUsername() => Request.Headers[_settings.UsernameHeader].FirstOrDefault();

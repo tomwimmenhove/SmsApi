@@ -13,6 +13,7 @@ public class Daemon
     private readonly object _mmcliLocker = new();
     private readonly List<ModemManager> _modemList = new();
     private readonly SmsApiClient _apiClient;
+    private readonly HttpClient _httpClient = new();
 
     private string _baseUrl;
     private string _startIdFile;
@@ -40,6 +41,18 @@ public class Daemon
         if (mmcli == null)
         {
             throw new DaemonException("Mmcli not set in appsettings.json");
+        }
+
+        var secretHeader = configuration.GetValue<string>("Service:SecretHeaders");
+        if (secretHeader != null)
+        {
+            var secretValue = configuration.GetValue<string>("Service:SecretValue");
+            if (secretValue == null)
+            {
+                throw new DaemonException("Service:SecretHeaders being set requires Service:SecretValue to be set in appsettings.json");
+            }
+            
+            _httpClient.DefaultRequestHeaders.Add(secretHeader, secretValue);
         }
 
         var listResult = ModemManager.ListModems(mmcli);
@@ -80,7 +93,7 @@ public class Daemon
             Console.WriteLine($"Using modem {modem.Modem} with number {modem.Numbers.First()}");
         }
 
-        _apiClient = new SmsApiClient(new HttpClient(), _baseUrl);
+        _apiClient = new SmsApiClient(_httpClient, _baseUrl);
     }
 
     public async Task Run()
