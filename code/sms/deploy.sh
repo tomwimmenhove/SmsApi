@@ -11,14 +11,14 @@ DEPLOY_HOST=`cat $DEPLOY_HOST_FILE`
 
 dotnet build --configuration=Release || exit $?
 
-rsync -r --progress bin/Release/net7.0/ sms@$DEPLOY_HOST:/opt/dotnet/sms || exit $?
+rsync -r --progress bin/Release/net7.0/ dotnet@$DEPLOY_HOST:/opt/dotnet/sms || exit $?
 
 echo "Copying appsettings.json"
-ssh sms@$DEPLOY_HOST -- "cp /opt/dotnet/sms_data/appsettings.json /opt/dotnet/sms/" || exit $?
+ssh dotnet@$DEPLOY_HOST -- "cp /opt/dotnet/sms_data/appsettings.json /opt/dotnet/sms/" || exit $?
 
 echo "Press enter to restart service, or ^C to exit"
 read
-ssh -t sms@$DEPLOY_HOST -- "sudo systemctl restart smsservice.service; sudo systemctl restart smsws.service" || exit $?
+ssh -t dotnet@$DEPLOY_HOST -- "sudo systemctl restart smsservice.service; sudo systemctl restart smsws.service" || exit $?
 
 echo Done
 
